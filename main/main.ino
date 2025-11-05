@@ -10,8 +10,8 @@
 #define ENABLE_PIN 4
 
 // --- Sensor Objects ---
-Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345);
-Adafruit_VL53L1X tof = Adafruit_VL53L1X();
+// Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345);
+// Adafruit_VL53L1X tof = Adafruit_VL53L1X();
 
 void setup() {
     Serial.begin(9600);
@@ -32,22 +32,22 @@ void setup() {
 
 
 
-    // --- Initialize TSL2561 ---
-    if(!tsl.begin()) {
-        Serial.println("TSL2561 not found!");
-    } else {
-        Serial.println("TSL2561 found!");
-        tsl.enableAutoRange(true);
-        tsl.setIntegrationTime(TSL_2561_INTEGRATIONTIME_13MS);
-    }
+    // // --- Initialize TSL2561 ---
+    // if(!tsl.begin()) {
+    //     Serial.println("TSL2561 not found!");
+    // } else {
+    //     Serial.println("TSL2561 found!");
+    //     tsl.enableAutoRange(true);
+    //     tsl.setIntegrationTime(TSL_2561_INTEGRATIONTIME_13MS);
+    // }
     
-    // --- Initialize VL53L1X ---
-    if(!tof.begin()) {
-        Serial.println("VL53L1X not found!");
-    } else {
-        Serial.println("VL53L1X found!");
-        tof.startContinuous(50); // continuous mode, 50ms interval 
-    }
+    // // --- Initialize VL53L1X ---
+    // if(!tof.begin()) {
+    //     Serial.println("VL53L1X not found!");
+    // } else {
+    //     Serial.println("VL53L1X found!");
+    //     tof.startContinuous(50); // continuous mode, 50ms interval 
+    // }
 }
 
 void loop() {
@@ -56,9 +56,9 @@ void loop() {
     digitalWrite(DIR_PIN, HIGH);
     for (int i = 0; i < 200; i++) {     // 200 steps = 1 revolution
         digitalWrite(STEP_PIN, HIGH);
-        delayMicroseconds(1000);        // pulse width
+        wait_us(1000);        // pulse width
         digitalWrite(STEP_PIN, LOW);
-        delayMicroseconds(1000);
+        wait_us(1000);
     }
 
     delay(1000);    // pause 1 second
@@ -67,28 +67,28 @@ void loop() {
     digitalWrite(DIR_PIN, LOW);
     for (int i = 0; i < 200; i++) {
         digitalWrite(STEP_PIN, HIGH);
-        delayMicroseconds(1000);
+        wait_us(1000);
         digitalWrite(STEP_PIN, LOW);
-        delayMicroseconds(1000);
+        wait_us(1000);
     }
 
     delay(1000);
 
-    // --- Read TSL2561 ---
-    sensors_event_t event;
-    tsl.getEvent(&event);
-    if (event.light) {
-        Serial.print("Light: ");
-        Serial.print(event.light);
-        Serial.println(" lux");
-    } else {
-        Serial.println("No light data");
-    }
+    // // --- Read TSL2561 ---
+    // sensors_event_t event;
+    // tsl.getEvent(&event);
+    // if (event.light) {
+    //     Serial.print("Light: ");
+    //     Serial.print(event.light);
+    //     Serial.println(" lux");
+    // } else {
+    //     Serial.println("No light data");
+    // }
 
-    // --- Read Vl53L1X ---
-    Serial.print("Distance: ");
-    Serial.print(tof.read());
-    Serial.println(" mm");
+    // // --- Read Vl53L1X ---
+    // Serial.print("Distance: ");
+    // Serial.print(tof.read());
+    // Serial.println(" mm");
 
     delay(500); // half-second pause between readings
 }
