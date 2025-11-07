@@ -1,50 +1,40 @@
-#include "mbed.h"
 #include <Arduino.h>
+#include "mbed.h"
 
-#define STEP_PIN     2
-#define DIR_PIN      3
-#define ENABLE_PIN   4
+#define STEP_PIN 2
+#define DIR_PIN  3
+#define EN_PIN   4   // DRV8825: LOW=enable, HIGH=disable
 
 using namespace mbed;
-
-// Use MBed DigitalOut for fast & stable pin toggling
 DigitalOut stepPin(digitalPinToPinName(STEP_PIN));
 DigitalOut dirPin (digitalPinToPinName(DIR_PIN));
-DigitalOut enPin  (digitalPinToPinName(ENABLE_PIN));
+DigitalOut enPin  (digitalPinToPinName(EN_PIN));
 
-void stepMotor(int steps, bool direction, int pulseDelay_us) {
-  dirPin = direction ? 1 : 0;   // Set direction
-  for (int i = 0; i < steps; i++) {
-    stepPin = 1;
-    wait_us(pulseDelay_us);
-    stepPin = 0;
-    wait_us(pulseDelay_us);
-  }
+void pulseOnce(int microsec){
+  stepPin = 1; wait_us(microsec);
+  stepPin = 0; wait_us(microsec);
 }
 
-void setup()
-{
-Serial.begin(115200);
-  delay(500);
+// simple move with enable only during motion
+void moveSteps(long steps, bool dir, int freqHz){
+  Serial.println(dir ? "Forward" : "Backward");
+  dirPin = dir ? 1 : 0;
+  enPin  = 0;                 // enable driver
+  int microsec = (int)(1e6/(freqHz*2.0));
+  for(long i=0;i<steps;i++) pulseOnce(microsec);
+  enPin  = 1;                 // disable outputs (no idle heat)
+}
 
-  enPin = 0; // LOW = Enable driver
+void setup(){
+  enPin = 1;                  // start disabled
   stepPin = 0;
   dirPin = 0;
-  
-  analogReadResolution(12);  
 }
-void loop()
-{
-    uint16_t raw = analogRead(A0);
-    float v = (raw / 4095.0f) * 3.3f;  // ADC range is 0..3.3V
-    Serial.print("Vref = "); Serial.print(v, 3); Serial.println(" V");
-    delay(300);
 
-    Serial.println("Forward...");
-    stepMotor(1000, true, 2000);   // 1000 steps forward, slow for torque
-    delay(1500);
-
-    Serial.println("Backward...");
-    stepMotor(1000, false, 2000);  // 1000 steps backward
-    delay(1500);
+void loop(){
+  // Example: ~1/4 turn (≈259 steps on 5.18:1)
+  moveSteps(1036, true, 80);   // start slow (50–100 Hz)
+  delay(1500);
+  moveSteps(1036, false, 80);
+  delay(3000);                // plenty of idle time with coils off
 }
