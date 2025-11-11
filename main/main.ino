@@ -37,7 +37,7 @@ full rotation = 1036 steps
 half = 518 steps
 quarter = 259 steps
 */
-void moveSteps(long steps, bool dir, int freqHz){
+void moveSteps(long steps, bool dir, int freqHz){ //freqHZ: 50-100!
   Serial.println(dir ? "Forward" : "Backward"); 
   dirPin = dir ? 1 : 0;//true = clockwise : false = counterclockwise
   enPin  = 0;                 // enable driver
@@ -93,4 +93,6 @@ void loop() {
   } else {
     Serial.println("No light data");
   }
+
+  delay(1000);
 }
