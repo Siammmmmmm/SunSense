@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include "mbed.h"
-// #include <Wire.h>
-// #include <Adafruit_Sensor.h>
-// #include <Adafruit_TSL2561_U.h>
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_TSL2561_U.h>
 // #include <Adafruit_VL53L1X.h>
 
 // --- Pin Definitions ---
