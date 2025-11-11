@@ -17,7 +17,7 @@ void pulseOnce(int microsec){
 
 // simple move with enable only during motion
 void moveSteps(long steps, bool dir, int freqHz){
-  Serial.println(dir ? "Forward" : "Backward");
+  Serial.println(dir ? "Forward" : "Backward"); //true = clockwise : false = counterclockwise
   dirPin = dir ? 1 : 0;
   enPin  = 0;                 // enable driver
   int microsec = (int)(1e6/(freqHz*2.0));

@@ -12,17 +12,37 @@
 
 using namespace mbed;
 
+//--motor out--
+DigitalOut stepPin(digitalPinToPinName(STEP_PIN));
+DigitalOut dirPin (digitalPinToPinName(DIR_PIN));
+DigitalOut enPin  (digitalPinToPinName(EN_PIN));
+
 // --- Sensor Objects ---
 Adafruit_TSL2561_Unified light = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345);
 Adafruit_VL53L1X tof = Adafruit_VL53L1X();
 
+void pulse(int microsec){
+  stepPin = 1; wait_us(microsec);
+  stepPin = 0; wait_us(microsec);
+}
 
+//motor moves
+//ex: full rotation = 1036 steps
+//moveSteps(1036, true, 80)
+void moveSteps(long steps, bool dir, int freqHz){
+  Serial.println(dir ? "Forward" : "Backward"); 
+  dirPin = dir ? 1 : 0;//true = clockwise : false = counterclockwise
+  enPin  = 0;                 // enable driver
+  int microsec = (int)(1e6/(freqHz*2.0));
+  for(long i=0;i<steps;i++) pulseOnce(microsec);
+  enPin  = 1;                 // disable outputs (no idle heat)
+}
 
 void setup() {
   Serial.begin(115200);
   delay(500);
 
-  enPin = 0; // LOW = Enable driver
+  enPin = 1; // default its disabled to reduce heat
   stepPin = 0;
   dirPin = 0;
   
