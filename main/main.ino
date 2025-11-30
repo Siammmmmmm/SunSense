@@ -6,10 +6,10 @@
 #include <Adafruit_VL53L1X.h>
 
 // --- Pin Definitions ---
-#define STEP_PIN     2
-#define DIR_PIN      3
-#define ENABLE_PIN   4 // DRV8825: LOW=enable, HIGH=disable
-#define SLP_PIN  9  // LOW=disable, HIGH=enable
+#define STEP_PIN 2
+#define DIR_PIN 3
+#define ENABLE_PIN 4 // DRV8825: LOW=enable, HIGH=disable
+#define SLP_PIN 9 // LOW=disable, HIGH=enable
 #define XSHUT1 5
 #define XSHUT2 6
 #define XSHUT3 7
@@ -33,8 +33,8 @@ Adafruit_VL53L1X tof3 = Adafruit_VL53L1X();
 Adafruit_VL53L1X tof4 = Adafruit_VL53L1X();
 
 // --- Parameters ---
-int lightThreshold = 125;    // lux value to trigger movement (adjust as needed)
-int bright = 0;
+int lightThreshold = 6;    // lux value to trigger movement (adjust as needed)
+int bright = 1;
 // int stepDelay = 1000;       // microseconds between steps
 // int stepsPerMove = 200;     // number of steps per movement
 
@@ -51,7 +51,7 @@ quarter = 259 steps
 */
 void moveSteps(long steps, bool dir, int freqHz){
   slpPin = 1; // awake
-  Serial.print("MOTOR : ")
+  Serial.print("MOTOR : ");
   Serial.println(dir ? "Forward" : "Backward"); //true = clockwise : false = counterclockwise
   dirPin = dir ? 1 : 0;
   enPin  = 0;                 // enable driver
@@ -63,7 +63,8 @@ void moveSteps(long steps, bool dir, int freqHz){
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial){};
+  // while (!Serial){};
+  delay(500);
 
   Wire.begin();
   Serial.println("~--===STARTING SunSense===--~");
@@ -155,11 +156,11 @@ void loop() {
 
     if (event.light < lightThreshold && bright == 0) {
       Serial.println("LIGHT : Too dark -> rotating clockwise");
-      moveSteps(1036, true, 80);  // one rotation clockwise
+      moveSteps(1036*3, true, 100);  // steps for 360 rotation * num of rotations
       bright = 1;
     } else if(event.light > lightThreshold && bright == 1){
       Serial.println("LIGHT : Bright enough -> rotating counterclockwise");
-      moveSteps(1036, false, 80);
+      moveSteps(1036*3, false, 100);
       bright = 0;
     }
   } else {
@@ -171,7 +172,7 @@ void loop() {
       int distance1 = tof1.distance();  // get distance in mm
       Serial.print("TOF 1 : ");
       Serial.print(distance1);
-      Serial.println(" mm | ");
+      Serial.println(" mm  ");
       tof1.clearInterrupt();  // clear the interrupt so new data can come in
   }
 
@@ -180,7 +181,7 @@ void loop() {
       int distance2 = tof2.distance();  // get distance in mm
       Serial.print("TOF 2 : ");
       Serial.print(distance2);
-      Serial.println(" mm | ");
+      Serial.println(" mm  ");
       tof2.clearInterrupt();  // clear the interrupt so new data can come in
   }
 
@@ -189,7 +190,7 @@ void loop() {
       int distance3 = tof3.distance();  // get distance in mm
       Serial.print("TOF 3 : ");
       Serial.print(distance3);
-      Serial.println(" mm | ");
+      Serial.println(" mm  ");
       tof3.clearInterrupt();  // clear the interrupt so new data can come in
   }
 
@@ -198,7 +199,7 @@ void loop() {
       int distance4 = tof4.distance();  // get distance in mm
       Serial.print("TOF 4 : ");
       Serial.print(distance4);
-      Serial.println(" mm | ");
+      Serial.println(" mm  ");
       tof4.clearInterrupt();  // clear the interrupt so new data can come in
   }
 
