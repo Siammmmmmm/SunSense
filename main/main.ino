@@ -3,17 +3,21 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_TSL2561_U.h>
-#include <Adafruit_VL53L1X.h>
+#include <VL53L1X.h>
 
 // --- Pin Definitions ---
 #define STEP_PIN 2
 #define DIR_PIN 3
 #define ENABLE_PIN 4 // DRV8825: LOW=enable, HIGH=disable
 #define SLP_PIN 9 // LOW=disable, HIGH=enable
-#define XSHUT1 5
-#define XSHUT2 6
-#define XSHUT3 7
-#define XSHUT4 8
+
+// The number of tof in the system.
+const uint8_t sensorCount = 4;
+
+const uint8_t d1=0 , d2=0, d3=0, d4=0;
+
+// The Arduino pin connected to the XSHUT pin of each sensor.
+const uint8_t xshutPins[sensorCount] = { 5, 6, 7, 8 };
 
 using namespace mbed;
 
@@ -27,10 +31,7 @@ DigitalOut slpPin (digitalPinToPinName(SLP_PIN));
 // --- Sensor Objects ---
 Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345);
 
-Adafruit_VL53L1X tof1 = Adafruit_VL53L1X();
-Adafruit_VL53L1X tof2 = Adafruit_VL53L1X();
-Adafruit_VL53L1X tof3 = Adafruit_VL53L1X();
-Adafruit_VL53L1X tof4 = Adafruit_VL53L1X();
+VL53L1X tof[sensorCount];
 
 // --- Parameters ---
 int lightThreshold = 6;    // lux value to trigger movement (adjust as needed)
@@ -62,11 +63,12 @@ void moveSteps(long steps, bool dir, int freqHz){
 }
 
 void setup() {
+  while(!Serial)
   Serial.begin(9600);
-  // while (!Serial){};
   delay(500);
 
   Wire.begin();
+  Wire.setClock(400000);
   Serial.println("~--===STARTING SunSense===--~");
 
   // --- Initialize motor driver pins ---
@@ -87,59 +89,38 @@ void setup() {
   }
   delay(10);
 
-  // Set all XSHUT pins as outputs and pull them LOW to disable all sensors
-  pinMode(XSHUT1, OUTPUT);
-  pinMode(XSHUT2, OUTPUT);
-  pinMode(XSHUT3, OUTPUT);
-  pinMode(XSHUT4, OUTPUT);
-
-  digitalWrite(XSHUT1, LOW);
-  digitalWrite(XSHUT2, LOW);
-  digitalWrite(XSHUT3, LOW);
-  digitalWrite(XSHUT4, LOW);
-  delay(10);
-
-  // --- Initialize Sensor 1 ---
-  digitalWrite(XSHUT1, HIGH);     // Enable sensor 1
-  delay(10);
-  if(!tof1.begin(0x30, &Wire)) {   // Assign address 0x30
-      Serial.println("SYSTEM: TOF Sensor 1 failed!");
-      while (1);
+  // Set all XSHUT pins as outputs and pull them LOW to disable all  tof sensors
+  for (int i = 0; i < sensorCount; i++)
+  {
+    pinMode(xshutPins[i], OUTPUT);
+    digitalWrite(xshutPins[i], LOW);
   }
-  Serial.println("SYSTEM: TOF Sensor 1 initialized at 0x30"); 
 
-  // --- Initialize Sensor 2 ---
-  digitalWrite(XSHUT2, HIGH);     // Enable sensor 2
   delay(10);
-  if(!tof2.begin(0x31, &Wire)) {   // Assign address 0x31
-      Serial.println("SYSTEM: TOF Sensor 2 failed!");
-      while (1);
-  }
-  Serial.println("SYSTEM: TOF Sensor 2 initialized at 0x31"); 
 
-  // --- Initialize Sensor 3 ---
-  digitalWrite(XSHUT3, HIGH);     // Enable sensor 3
-  delay(10);
-  if(!tof3.begin(0x32, &Wire)) {   // Assign address 0x32
-      Serial.println("SYSTEM: TOF Sensor 3 failed!");
-      while (1);
-  }
-  Serial.println("SYSTEM: TOF Sensor 3 initialized at 0x32"); 
+  for (int i = 0; i < sensorCount; i++)
+  {
+    // Stop driving this sensor's XSHUT low
+    pinMode(xshutPins[i], INPUT);
+    delay(10);
 
-  // --- Initialize Sensor 4 ---
-  digitalWrite(XSHUT4, HIGH);     // Enable sensor 4
-  delay(10);
-  if(!tof4.begin(0x33, &Wire)) {   // Assign address 0x33
-      Serial.println("SYSTEM: TOF Sensor 4 failed!");
+    // tof[i].setTimeout(500);
+    if (!tof[i].init())
+    {
+      Serial.print("Failed to detect and initialize sensor ");
+      Serial.println(i);
       while (1);
-  }
-  Serial.println("SYSTEM: TOF Sensor 4 initialized at 0x33"); 
+    }
 
-  // Start ranging on all sensors
-  tof1.startRanging();
-  tof2.startRanging();
-  tof3.startRanging();
-  tof4.startRanging();
+    tof[i].setDistanceMode(VL53L1X::Long);
+    tof[i].setMeasurementTimingBudget(140000);
+    // tof[i].setROISize(14,14);
+    // tof[i].setROICenter(199);
+
+    // Each sensor must have its address changed to a unique value
+    tof[i].setAddress(0x2A + i);
+    tof[i].startContinuous(145);
+  }
 
   Serial.println("SYSTEM: All sensors ready!");
 }
@@ -152,7 +133,6 @@ void loop() {
     Serial.print("LIGHT : ");
     Serial.print(event.light);
     Serial.println(" lux!");
-
 
     if (event.light < lightThreshold && bright == 0) {
       Serial.println("LIGHT : Too dark -> rotating clockwise");
@@ -167,41 +147,16 @@ void loop() {
     Serial.println("LIGHT : No light data");
   }
 
-  // Read tof Sensor 1
-  if (tof1.dataReady()) {
-      int distance1 = tof1.distance();  // get distance in mm
-      Serial.print("TOF 1 : ");
-      Serial.print(distance1);
-      Serial.println(" mm  ");
-      tof1.clearInterrupt();  // clear the interrupt so new data can come in
+  Serial.print(millis());
+  for (uint8_t i = 0; i < sensorCount; i++)
+  {
+    Serial.print(",");
+    Serial.print(tof[i].read());
+    if (tof[i].timeoutOccurred()) {
+       Serial.print("TOF   : TIMEOUT"); 
+    }
   }
+  Serial.println();
 
-  // Read tof Sensor 2
-  if (tof2.dataReady()) {
-      int distance2 = tof2.distance();  // get distance in mm
-      Serial.print("TOF 2 : ");
-      Serial.print(distance2);
-      Serial.println(" mm  ");
-      tof2.clearInterrupt();  // clear the interrupt so new data can come in
-  }
-
-  // Read tof Sensor 3
-  if (tof3.dataReady()) {
-      int distance3 = tof3.distance();  // get distance in mm
-      Serial.print("TOF 3 : ");
-      Serial.print(distance3);
-      Serial.println(" mm  ");
-      tof3.clearInterrupt();  // clear the interrupt so new data can come in
-  }
-
-  // Read tof Sensor 4
-  if (tof4.dataReady()) {
-      int distance4 = tof4.distance();  // get distance in mm
-      Serial.print("TOF 4 : ");
-      Serial.print(distance4);
-      Serial.println(" mm  ");
-      tof4.clearInterrupt();  // clear the interrupt so new data can come in
-  }
-
-  delay(1000);
+  delay(900000);
 }
