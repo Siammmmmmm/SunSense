@@ -5,37 +5,35 @@
 #include <Adafruit_TSL2561_U.h>
 #include <VL53L1X.h>
 
+using namespace mbed;
+
 // --- Pin Definitions ---
 #define STEP_PIN 2
 #define DIR_PIN 3
 #define ENABLE_PIN 4 // DRV8825: LOW=enable, HIGH=disable
 #define SLP_PIN 9 // LOW=disable, HIGH=enable
 
-// The number of tof in the system.
+// --- tof ---
 const uint8_t sensorCount = 4;
 
 const uint8_t d1=0 , d2=0, d3=0, d4=0;
 
-// The Arduino pin connected to the XSHUT pin of each sensor.
+ //XSHUT pin of each sensor.
 const uint8_t xshutPins[sensorCount] = { 5, 6, 7, 8 };
 
-using namespace mbed;
-
-//--motor out--
+// --- motor out ---
 DigitalOut stepPin(digitalPinToPinName(STEP_PIN));
 DigitalOut dirPin (digitalPinToPinName(DIR_PIN));
 DigitalOut enPin  (digitalPinToPinName(ENABLE_PIN));
 DigitalOut slpPin (digitalPinToPinName(SLP_PIN));
 
-
 // --- Sensor Objects ---
 Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345);
-
 VL53L1X tof[sensorCount];
 
 // --- Parameters ---
 int lightThreshold = 6;    // lux value to trigger movement (adjust as needed)
-int bright = 1;
+int bright = 0;
 // int stepDelay = 1000;       // microseconds between steps
 // int stepsPerMove = 200;     // number of steps per movement
 
@@ -46,11 +44,13 @@ void pulse(int microsec){
 
 //motor moves
 /*ex: 
+2 full rotations = 2072 steps
 full rotation = 1036 steps
 half = 518 steps
 quarter = 259 steps
 */
-void moveSteps(long steps, bool dir, int freqHz){
+void moveSteps(int reps, bool dir, int freqHz){
+  long steps = 1036 * reps;
   slpPin = 1; // awake
   Serial.print("MOTOR : ");
   Serial.println(dir ? "Forward" : "Backward"); //true = clockwise : false = counterclockwise
@@ -62,42 +62,15 @@ void moveSteps(long steps, bool dir, int freqHz){
   slpPin = 0; //sleep
 }
 
-void setup() {
-  while(!Serial)
-  Serial.begin(9600);
-  delay(500);
-
-  Wire.begin();
-  Wire.setClock(400000);
-  Serial.println("~--===STARTING SunSense===--~");
-
-  // --- Initialize motor driver pins ---
-  enPin = 1;                  // start disabled
-  slpPin = 1; //disable later
-  stepPin = 0;
-  dirPin = 0;
-
-  delay(100);
-  // --- Initialize light sensor ---
-  if (!tsl.begin()) {
-    Serial.println("SYSTEM: No TSL2561 found!");
-    while (1);
-  } else {
-    Serial.println("SYSTEM: TSL2561 initialized!");
-    tsl.enableAutoRange(true);
-    tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);
-  }
-  delay(10);
-
+void tofInit(int freqHz){
+  // --- Initialize tof sensors ---
   // Set all XSHUT pins as outputs and pull them LOW to disable all  tof sensors
   for (int i = 0; i < sensorCount; i++)
   {
     pinMode(xshutPins[i], OUTPUT);
     digitalWrite(xshutPins[i], LOW);
   }
-
   delay(10);
-
   for (int i = 0; i < sensorCount; i++)
   {
     // Stop driving this sensor's XSHUT low
@@ -113,19 +86,29 @@ void setup() {
     }
 
     tof[i].setDistanceMode(VL53L1X::Long);
-    tof[i].setMeasurementTimingBudget(140000);
+    tof[i].setMeasurementTimingBudget(1000*freqHz);
     // tof[i].setROISize(14,14);
     // tof[i].setROICenter(199);
 
     // Each sensor must have its address changed to a unique value
     tof[i].setAddress(0x2A + i);
-    tof[i].startContinuous(145);
+    tof[i].startContinuous(5+freqHz);
   }
-
-  Serial.println("SYSTEM: All sensors ready!");
 }
 
-void loop() {
+void luxInit(){
+  // --- Initialize light sensor ---
+  if (!tsl.begin()) {
+    Serial.println("SYSTEM: No TSL2561 found!");
+    while (1);
+  } else {
+    Serial.println("SYSTEM: TSL2561 initialized!");
+    tsl.enableAutoRange(true);
+    tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);
+  }
+}
+
+void lux(float reps){
   sensors_event_t event;
   tsl.getEvent(&event);
 
@@ -136,17 +119,19 @@ void loop() {
 
     if (event.light < lightThreshold && bright == 0) {
       Serial.println("LIGHT : Too dark -> rotating clockwise");
-      moveSteps(1036*3, true, 100);  // steps for 360 rotation * num of rotations
+      moveSteps(reps, true, 100);  // steps for 360 rotation * num of rotations
       bright = 1;
     } else if(event.light > lightThreshold && bright == 1){
       Serial.println("LIGHT : Bright enough -> rotating counterclockwise");
-      moveSteps(1036*3, false, 100);
+      moveSteps(reps, false, 100);
       bright = 0;
     }
   } else {
     Serial.println("LIGHT : No light data");
   }
+}
 
+void tofSensor(){
   Serial.print(millis());
   for (uint8_t i = 0; i < sensorCount; i++)
   {
@@ -157,6 +142,38 @@ void loop() {
     }
   }
   Serial.println();
+}
 
-  delay(900000);
+void ml(){
+  
+}
+
+void setup() {
+  Serial.begin(115200);
+  // while(!Serial);
+  delay(500);
+  Wire.begin();
+  Wire.setClock(400000);
+
+  Serial.println("~--===STARTING SunSense===--~");
+
+  // --- Initialize motor driver pins ---
+  enPin = 1; // start disabled
+  slpPin = 1; //disable later
+  stepPin = 0;
+  dirPin = 0;
+  delay(100);
+
+  luxInit();
+  delay(10);
+
+  tofInit(50); //50 hz
+  delay(10);
+
+  Serial.println("SYSTEM: All sensors ready!");
+}
+
+void loop() {
+  lux(3); //3 reps
+  tofSensor();
 }

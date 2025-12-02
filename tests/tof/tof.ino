@@ -1,6 +1,9 @@
 #include <Wire.h>
 #include <VL53L1X.h>
 
+// button pin
+// const int BTN = 10;
+
 // The number of tof in your system.
 const uint8_t sensorCount = 4;
 
@@ -19,6 +22,9 @@ void setup() {
   // Initialize I2C
   Wire.begin();
   Wire.setClock(400000);
+
+  // Initialize button
+  // pinMode(BTN, INPUT_PULLUP);
 
   // Set all XSHUT pins as outputs and pull them LOW to disable all sensors
   for (int i = 0; i < sensorCount; i++)
@@ -44,19 +50,28 @@ void setup() {
     }
 
     tof[i].setDistanceMode(VL53L1X::Long);
-    tof[i].setMeasurementTimingBudget(140000);
-    tof[i].setROISize(14,14);
-    tof[i].setROICenter(199);
+    tof[i].setMeasurementTimingBudget(50000);
+    // tof[i].setROISize(14,14);
+    // tof[i].setROICenter(199);
 
     // Each sensor must have its address changed to a unique value
     tof[i].setAddress(0x2A + i);
-    tof[i].startContinuous(145);
+    tof[i].startContinuous(55);
   }
 
   Serial.println("All sensors ready!");
 }
 
 void loop() {
+  if (Serial.available()) {
+      char c = Serial.read();
+      if (c == 's') {
+        Serial.println();
+        Serial.println("=============================START");  // marker
+
+      }
+  }
+
   Serial.print(millis());
 
   for (uint8_t i = 0; i < sensorCount; i++)
