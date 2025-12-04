@@ -26,7 +26,7 @@ Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 1234
 
 // --- Parameters ---
 const int lightThreshold = 6;    // lux value to trigger movement (adjust as needed)
-int bright = 1;
+int bright = 0;
 
 // --- RTOS objects ---
 Mutex printMutex; // guard Serial printing
@@ -46,28 +46,19 @@ full rotation     = 1036 steps
 half              = 518 steps
 quarter           = 259 steps
 */
-void moveSteps(float reps, bool dir, int freqHz){
-  motorMutex.lock();
-  long steps = (long)(1036.0f * reps);
-
-  // Wake motor driver
-  slpPin = 1;           // awake
+void moveSteps(int steps, bool dir, int freqHz){
+  // int steps = 1036 * reps;
+  slpPin = 1; // awake
+  printMutex.lock();
+  Serial.print("MOTOR : ");
+  Serial.println(dir ? "Forward" : "Backward"); //true = clockwise : false = counterclockwise
+  printMutex.unlock();
   dirPin = dir ? 1 : 0;
-  enPin  = 0;           // enable driver
-
-  {
-    printMutex.lock();
-    Serial.print("MOTOR : ");
-    Serial.println(dir ? "Forward" : "Backward");
-    printMutex.unlock();
-  }
-
-  int microsec = (int)(1e6 / (freqHz * 2.0f));
-  for (long i = 0; i < steps; i++) pulse(microsec);
-
-  enPin  = 1;           // disable outputs (no idle heat)
-  slpPin = 0;           // sleep
-  motorMutex.unlock();
+  enPin  = 0;                 // enable driver
+  int microsec = (int)(1e6/(freqHz*2.0));
+  for(long i=0;i<steps;i++) pulse(microsec);
+  enPin  = 1;                 // disable outputs (no idle heat)
+  slpPin = 0; //sleep
 }
 
 void luxInit(){
@@ -86,7 +77,7 @@ void luxInit(){
 }
 
 void luxTask(){
-  const float reps = 3;
+  const int reps = 3; //num of rotations
   while (true) {
 
     sensors_event_t event;
@@ -104,14 +95,14 @@ void luxTask(){
         Serial.println("LIGHT : Too dark -> rotating clockwise");
         printMutex.unlock();
 
-        moveSteps(reps, true, 100);
+        moveSteps(1036*reps, true, 100);//reps * num of steps in 1 rotation
         bright = 1;
       } else if (event.light > lightThreshold && bright == 1) {
         printMutex.lock();
         Serial.println("LIGHT : Bright enough -> rotating counterclockwise");
         printMutex.unlock();
 
-        moveSteps(reps, false, 100);
+        moveSteps(1036*reps, false, 100);
         bright = 0;
       }
     } else {
@@ -120,6 +111,7 @@ void luxTask(){
       printMutex.unlock();
     }
   }
+  // ThisThread::sleep_for(10000ms);
 }
 
 void setup() {
