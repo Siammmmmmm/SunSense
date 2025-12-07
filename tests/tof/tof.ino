@@ -14,6 +14,10 @@ const uint8_t xshutPins[sensorCount] = { 5, 6, 7, 8 };
 
 VL53L1X tof[sensorCount];
 
+unsigned long last = 0;
+bool running = false;
+int count = 0;
+
 void setup() {
   while (!Serial) 
   Serial.begin(115200);
@@ -50,13 +54,13 @@ void setup() {
     }
 
     tof[i].setDistanceMode(VL53L1X::Long);
-    tof[i].setMeasurementTimingBudget(50000);
+    tof[i].setMeasurementTimingBudget(20000);
     // tof[i].setROISize(14,14);
     // tof[i].setROICenter(199);
 
     // Each sensor must have its address changed to a unique value
     tof[i].setAddress(0x2A + i);
-    tof[i].startContinuous(55);
+    tof[i].startContinuous(50);
   }
 
   Serial.println("All sensors ready!");
@@ -68,12 +72,19 @@ void loop() {
       if (c == 's') {
         Serial.println();
         Serial.println("=============================START");  // marker
-
+        delay(750);
       }
   }
+  // unsigned long now = millis();
 
+  // if(now - last  >= 1450){
+  //   running = !running;
+  //   last = now;
+  // }
+
+
+  // if (running){
   Serial.print(millis());
-
   for (uint8_t i = 0; i < sensorCount; i++)
   {
     Serial.print(",");
@@ -83,6 +94,11 @@ void loop() {
     }
   }
   Serial.println();
+  // } else {
+  //   Serial.println();
+  // }
+
+
 
   // Serial.print(millis());Serial.print(d1); Serial.print((",")); Serial.print(d2); Serial.print((",")); Serial.print(d3); Serial.print((",")); Serial.println((d4));
 }
