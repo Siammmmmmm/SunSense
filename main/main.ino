@@ -6,7 +6,6 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_TSL2561_U.h>
 #include <VL53L1X.h>
-#include <cstring>   // for strcmp
 
 using namespace mbed;
 using namespace rtos;
@@ -15,45 +14,48 @@ using namespace std::chrono_literals;
 // --- Pin Definitions ---
 #define STEP_PIN 2
 #define DIR_PIN 3
-#define ENABLE_PIN 4 // DRV8825: LOW=enable, HIGH=disable
-#define SLP_PIN 9    // LOW=disable, HIGH=enable
+#define ENABLE_PIN 4  // DRV8825: LOW=enable, HIGH=disable
+#define SLP_PIN 9     // LOW=disable, HIGH=enable
 
 // --- tof ---
 const uint8_t sensorCount = 4;
 
 // Shared latest TOF readings (updated by tofThread, read by aiThread)
-volatile uint16_t tofValues[sensorCount] = {0, 0, 0, 0};
+volatile uint16_t tofValues[sensorCount] = { 0, 0, 0, 0 };
 
 // XSHUT pins
 const uint8_t xshutPins[sensorCount] = { 5, 6, 7, 8 };
 
 // --- motor out ---
 DigitalOut stepPin(digitalPinToPinName(STEP_PIN));
-DigitalOut dirPin (digitalPinToPinName(DIR_PIN));
-DigitalOut enPin  (digitalPinToPinName(ENABLE_PIN));
-DigitalOut slpPin (digitalPinToPinName(SLP_PIN));
+DigitalOut dirPin(digitalPinToPinName(DIR_PIN));
+DigitalOut enPin(digitalPinToPinName(ENABLE_PIN));
+DigitalOut slpPin(digitalPinToPinName(SLP_PIN));
 
 // --- Sensor Objects ---
 Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345);
 VL53L1X tof[sensorCount];
 
 // --- Parameters ---
-const int lightThreshold = 6;    // lux value to trigger movement (adjust as needed)
+const int lightThreshold = 6;  // lux value to trigger movement (adjust as needed)
 int bright = 1;
 volatile bool motorActive = false;
+// bool luxPause = false;
 
 // --- RTOS objects ---
-Mutex printMutex; // guard Serial printing
-Mutex motorMutex; // guard motor operations
-Mutex tofMutex;   // guard tof readings
+Mutex printMutex;  // guard Serial printing
+Mutex motorMutex;  // guard motor operations
+Mutex tofMutex;    // guard tof readings
 
 Thread luxThread;
 Thread tofThread;
 Thread aiThread;
 
-void pulse(int microsec){
-  stepPin = 1; wait_us(microsec);
-  stepPin = 0; wait_us(microsec);
+void pulse(int microsec) {
+  stepPin = 1;
+  wait_us(microsec);
+  stepPin = 0;
+  wait_us(microsec);
 }
 
 // motor moves
@@ -63,14 +65,14 @@ full rotation     = 1036 steps
 half              = 518 steps
 quarter           = 259 steps
 */
-void moveSteps(int steps, bool dir, int freqHz){
+void moveSteps(int steps, bool dir, int freqHz) {
   motorMutex.lock();
   motorActive = true;
 
   // Wake motor driver
-  slpPin = 1;           // awake
+  slpPin = 1;  // awake
   dirPin = dir ? 1 : 0;
-  enPin  = 0;           // enable driver
+  enPin = 0;  // enable driver
 
   {
     printMutex.lock();
@@ -82,14 +84,14 @@ void moveSteps(int steps, bool dir, int freqHz){
   int microsec = (int)(1e6 / (freqHz * 2.0f));
   for (long i = 0; i < steps; i++) pulse(microsec);
 
-  enPin  = 1; // disable outputs (no idle heat)
-  slpPin = 0; // sleep
+  enPin = 1;   // disable outputs (no idle heat)
+  slpPin = 0;  // sleep
 
   motorActive = false;
   motorMutex.unlock();
 }
 
-void tofInit(){
+void tofInit() {
   for (int i = 0; i < sensorCount; i++) {
     pinMode(xshutPins[i], OUTPUT);
     digitalWrite(xshutPins[i], LOW);
@@ -97,7 +99,7 @@ void tofInit(){
   ThisThread::sleep_for(10ms);
 
   for (int i = 0; i < sensorCount; i++) {
-    pinMode(xshutPins[i], INPUT); //toggles xshut pins to later set proper address to indentify
+    pinMode(xshutPins[i], INPUT);  //toggles xshut pins to later set proper address to indentify
     ThisThread::sleep_for(10ms);
 
     if (!tof[i].init()) {
@@ -110,13 +112,13 @@ void tofInit(){
 
     tof[i].setTimeout(50);
     tof[i].setDistanceMode(VL53L1X::Long);
-    tof[i].setMeasurementTimingBudget(20000); // 20ms == 20hz
+    tof[i].setMeasurementTimingBudget(20000);  // 20ms == 20hz
     tof[i].setAddress(0x2A + i);
-    tof[i].startContinuous(50); // 50ms between readings == 20hz
+    tof[i].startContinuous(50);  // 1/50ms between readings == 20hz
   }
 }
 
-void luxInit(){
+void luxInit() {
   if (!tsl.begin()) {
     printMutex.lock();
     Serial.println("SYSTEM: No TSL2561 found!");
@@ -131,11 +133,16 @@ void luxInit(){
   tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);
 }
 
-void luxTask(){
+void luxTask() {
   const int reps = 3;
   while (true) {
     sensors_event_t event;
     tsl.getEvent(&event);
+    // if (luxPause) {
+    //   ThisThread::sleep_for(10000ms);
+    //   luxPause = false;
+    //   continue;
+    // }
 
     if (event.light && !isnan(event.light)) {
       printMutex.lock();
@@ -149,14 +156,14 @@ void luxTask(){
         Serial.println("LIGHT : Too dark -> rotating clockwise");
         printMutex.unlock();
 
-        moveSteps(1036*reps, true, 100); // 1036 steps(1 full rotation * num of rotations), direction, motor hz 
-        bright = 1; // confirmation for blinds 
+        moveSteps(1036 * reps, true, 100);  // 1036 steps(1 full rotation * num of rotations), direction, motor hz
+        bright = 1;                         // confirmation for blinds
       } else if (event.light > lightThreshold && bright == 1) {
         printMutex.lock();
         Serial.println("LIGHT : bright enough -> rotating counterclockwise");
         printMutex.unlock();
 
-        moveSteps(1036*reps, false, 100); //1036 steps(1 full rotation * num of rotations), direction, motor hz 
+        moveSteps(1036 * reps, false, 100);  //1036 steps(1 full rotation * num of rotations), direction, motor hz
         bright = 0;
       }
     } else {
@@ -165,12 +172,12 @@ void luxTask(){
       printMutex.unlock();
     }
 
-    ThisThread::sleep_for(60000ms);
+    ThisThread::sleep_for(600000ms);
   }
 }
 
 void tofTask() {
-  const uint32_t SAMPLE_INTERVAL_MS = 50; // 20hz
+  const uint32_t SAMPLE_INTERVAL_MS = 50;  // 20hz
 
   while (true) {
     if (motorActive) {
@@ -178,7 +185,7 @@ void tofTask() {
       continue;
     }
 
-    uint16_t local[4] = {0, 0, 0, 0};
+    uint16_t local[4] = { 0, 0, 0, 0 };
 
     for (uint8_t i = 0; i < sensorCount; i++) {
       int d = tof[i].read();
@@ -189,8 +196,8 @@ void tofTask() {
         d = tofValues[i];  // previous stable value
       }
 
-      // clamp to sane physical range, but NOT to 500 magic
-      if (d < 100)  d = 100;   // 10cm min
+      // clamp to sane physical range, synthetic tof values
+      if (d < 100) d = 100;    // 10m min
       if (d > 4000) d = 4000;  // 4m max
       // -=-=-Sensor failsafe (misbehaves)-=-=-
 
@@ -217,24 +224,24 @@ void tofTask() {
 }
 
 void aiTask() {
-  ei_impulse_result_t result = {0};
+  ei_impulse_result_t result = { 0 };
 
   // expects EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE floats
-  static float inference_buffer[EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE];
+  static float inference_buffer[EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE];  //Frame stuff given by EI: idk how this exactly works lol
   size_t buf_idx = 0;
 
-  const uint32_t SAMPLE_INTERVAL_MS = 50;   // match TOF sampling
-  const float GESTURE_THRESHOLD = 0.95f;    // 95% confidence needed
+  const uint32_t SAMPLE_INTERVAL_MS = 50;  // match TOF sampling at 50ms or 20hz
+  const float GESTURE_THRESHOLD = 0.95f;   // 95% confidence needed
   uint32_t last_action_time = 0;
-  const uint32_t COOLDOWN_MS = 2000;        // 2s cooldown between actions
+  const uint32_t COOLDOWN_MS = 2000;  // 2s cooldown between actions
 
   // extra gating
-  const float MARGIN_THRESHOLD   = 0.15f;   // gesture must beat next class by 0.25
-  const int   MOTION_THRESHOLD_MM = 50;    // min movement in mm to count as "motion"
-  static int  consecutive_gesture = 0;
+  const float MARGIN_THRESHOLD = 0.25f;  // gesture must beat next class by 0.25
+  const int MOTION_THRESHOLD_MM = 50;    // min movement in mm to count as "motion"
+  static int consecutive_gesture = 0;
 
   static bool first_sample = true;
-  static uint16_t prev_tof[4] = {0, 0, 0, 0};
+  static uint16_t prev_tof[4] = { 0, 0, 0, 0 };
   static bool window_has_motion = false;
 
   // Find index of "gesture" label
@@ -267,11 +274,11 @@ void aiTask() {
       first_sample = false;
     }
 
-    int max_delta = 0;
+    int max_delta = 0;  //start to track changes in motion
     for (int i = 0; i < 4; i++) {
       int diff = (int)current_tof[i] - (int)prev_tof[i];
       if (diff < 0) diff = -diff;
-      if (diff > max_delta) max_delta = diff;
+      if (diff > max_delta) max_delta = diff; //checks if more than 50mm changed (redundant stuff to not over work the aithread)
     }
     for (int i = 0; i < 4; i++) prev_tof[i] = current_tof[i];
 
@@ -292,8 +299,7 @@ void aiTask() {
       int sf_res = numpy::signal_from_buffer(
         inference_buffer,
         EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE,
-        &signal
-      );
+        &signal);
 
       if (sf_res != 0) {
         printMutex.lock();
@@ -325,9 +331,10 @@ void aiTask() {
             int second_idx = -1;
             float second_prob = 0.0f;
 
+            // collects multiple frames into a window and chooses the best stable one and feeds into classifier
             for (size_t i = 1; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
               float p = result.classification[i].value;
-              if (p > best_prob) {
+              if (p > best_prob) { 
                 second_prob = best_prob;
                 second_idx = best_idx;
                 best_prob = p;
@@ -352,37 +359,36 @@ void aiTask() {
             printMutex.unlock();
 
             // 5. Decide if gesture is real
-            const float MARGIN_THRESHOLD = 0.15f; // difference between best & 2nd-best
+            const float MARGIN_THRESHOLD = 0.15f;  // difference between best & 2nd-best
 
             bool gesture_detected =
-                (best_idx == gesture_idx) &&
-                (best_prob >= GESTURE_THRESHOLD) &&
-                (margin >= MARGIN_THRESHOLD);
+              (best_idx == gesture_idx) && (best_prob >= GESTURE_THRESHOLD) && (margin >= MARGIN_THRESHOLD);
 
             uint32_t now = millis();
 
-            if (gesture_detected &&
-                (now - last_action_time) >= COOLDOWN_MS) {
+            if (gesture_detected && (now - last_action_time) >= COOLDOWN_MS) { //stops from multiple instances of gesture detection
 
-                printMutex.lock();
-                Serial.println(">>> GESTURE DETECTED (single window), MOVING MOTOR");
-                printMutex.unlock();
+              printMutex.lock();
+              Serial.println(">>> GESTURE DETECTED (single window), MOVING MOTOR");
+              printMutex.unlock();
 
-                motorMutex.lock();
-                if (bright == 0) {
-                  moveSteps(3*1036, true, 100);
-                  bright = 1;
-                } else {
-                  moveSteps(3*1036, false, 100);
-                  bright = 0;
-                }
-                motorMutex.unlock();
+              // luxPause = true; //stops the lux sensor for a while after gesture override
 
-                last_action_time = now; // reset cooldown
+              motorMutex.lock();
+              if (bright == 0) {
+                moveSteps(3 * 1036, true, 100);
+                bright = 1; //sets the blinds to open
+              } else {
+                moveSteps(3 * 1036, false, 100);
+                bright = 0;
+              }
+              motorMutex.unlock();
+
+              last_action_time = now;  // reset cooldown
             }
-          } // end window_has_motion check
-        }   // end rc OK
-      }     // end sf_res OK
+          }  // end window_has_motion check
+        }
+      }
 
       // reset for next 1-second window
       window_has_motion = false;
@@ -404,15 +410,15 @@ void setup() {
   printMutex.unlock();
 
   // --- Initialize motor driver pins ---
-  enPin = 1; // start disabled
-  slpPin = 1; // disable later
+  enPin = 1;   // start disabled
+  slpPin = 0;  // enable later
   stepPin = 0;
   dirPin = 0;
   ThisThread::sleep_for(100ms);
 
-  luxInit(); //lux sensor
+  luxInit();  //lux sensor
   ThisThread::sleep_for(50ms);
-  tofInit(); //tof sensor
+  tofInit();  //tof sensor
   ThisThread::sleep_for(50ms);
 
   printMutex.lock();
