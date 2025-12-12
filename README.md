@@ -1,5 +1,5 @@
 # SunSense
-Automated Smart Blinds System
+>Automated Smart Blinds System
 
 A real-time embedded system that automatically opens or closes window blinds based on ambient light level and user gestures. The system uses light sensors to detect brightness conditions and Time-of-Flight sensors with TinyML to recognize simple hand gestures for manual override.
 
@@ -9,4 +9,6 @@ To build this project, you'll need an Arduino Nano 33 BLE Sense Rev2, a Nema 17 
 
 # How to Use and Interact
 
-Once powered on, the system runs three parallel tasks automatically. The light sensing thread checks the ambient light level every 10 seconds and rotates the motor 3 full rotations to open or close the blinds when the light crosses the threshold of 6 lux. The ToF thread continuously samples all four distance sensors at approximately 20 Hz, and the Ai thread collects one second of ToF data and runs a TinyML gesture recognition model on it. When a gesture is detected with at least 95% confidence, the system overrides the automatic mode and toggles the blinds (with a 2-second cooldown between gestures to prevent accidental triggers). You can manually control the blinds by waving your hand toward the four ToF sensors positioned in front of the device. The system alternates between opening and closing with each detected gesture. All activity is logged to the Serial Monitor at 115200 baud if you want to debug or monitor the system's behavior.
+Once powered on, the system runs three parallel tasks automatically. The light sensing thread checks the ambient light level every 10 minutes and rotates the motor 3 full rotations to open or close the blinds when the light crosses the threshold of 6 lux. The ToF thread continuously samples all four distance sensors at approximately 20 Hz, and the Ai thread collects one second of ToF data and runs a TinyML gesture recognition model on it. When a gesture is detected with at least 95% confidence, the system overrides the automatic mode and toggles the blinds (with a 2-second cooldown between gestures to prevent accidental triggers). You can manually control the blinds by waving your hand toward the four ToF sensors positioned in front of the device. The system alternates between opening and closing with each detected gesture. All activity is logged to the Serial Monitor at 115200 baud if you want to debug or monitor the system's behavior.
+
+>[Demo Link](https://buffalo.box.com/s/utygu3p5m2xhpubo7brv89h74q1jszoa)
